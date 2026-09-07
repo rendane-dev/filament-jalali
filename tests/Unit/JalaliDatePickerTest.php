@@ -7,18 +7,18 @@ it('builds calendar day options with saturday-first padding using verta', functi
     $options = [];
 
     for ($index = 0; $index < $firstDayOfMonth->dayOfWeek; $index++) {
-        $options["pad_{$index}"] = ' ';
+        $options["p{$index}"] = "\u{00A0}";
     }
 
     for ($day = 1; $day <= $firstDayOfMonth->daysInMonth; $day++) {
-        $options[(string) $day] = (string) $day;
+        $options[$day] = (string) $day;
     }
 
-    expect($options)->toHaveKey('pad_0')
-        ->and($options)->toHaveKey('pad_5')
-        ->and($options)->not->toHaveKey('pad_6')
-        ->and($options)->toHaveKey('1')
-        ->and($options['1'])->toBe('1');
+    expect($options)->toHaveKey('p0')
+        ->and($options)->toHaveKey('p5')
+        ->and($options)->not->toHaveKey('p6')
+        ->and($options)->toHaveKey(1)
+        ->and($options[1])->toBe('1');
 });
 
 it('converts jalali dates to gregorian storage format with verta', function () {
@@ -43,4 +43,9 @@ it('provides year options from 100 years ago to 10 years ahead by default', func
     expect($options)->toHaveCount(111)
         ->and(array_key_first($options))->toBe($currentYear - 100)
         ->and(array_key_last($options))->toBe($currentYear + 10);
+});
+
+it('treats non-numeric toggle values as calendar padding cells', function () {
+    expect(is_numeric('p0'))->toBeFalse()
+        ->and(is_numeric('15'))->toBeTrue();
 });

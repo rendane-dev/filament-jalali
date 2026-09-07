@@ -36,6 +36,12 @@ class JalaliDatePicker extends Field implements HasAffixesContract, HasEmbeddedV
     use HasExtraInputAttributes;
     use HasPlaceholder;
 
+    private const string CALENDAR_PADDING_LABEL = "\u{00A0}";
+
+    private const int YEAR_RANGE_BEFORE = 100;
+
+    private const int YEAR_RANGE_AFTER = 10;
+
     protected string | Closure | null $displayFormat = 'Y/m/d';
 
     protected string | Closure | null $format = 'Y-m-d';
@@ -86,100 +92,104 @@ class JalaliDatePicker extends Field implements HasAffixesContract, HasEmbeddedV
      */
     protected function getPickerSchema(): array
     {
-        $picker = $this;
-
         return [
-            Grid::make(2)
-                ->schema([
-                    Select::make('month')
-                        ->label('ماه')
-                        ->options($this->getMonthOptions())
-                        ->selectablePlaceholder(false)
-                        ->native(false)
-                        ->searchable()
-                        ->live()
-                        ->afterStateUpdated(function (Set $set, Get $get): void {
-                            $this->resetDayIfInvalid($set, $get);
-                        })
-                        ->rules('required'),
-                    Select::make('year')
-                        ->label('سال')
-                        ->options(fn (): array => $this->getYearOptions())
-                        ->optionsLimit(fn (): int => count($this->getYearOptions()))
-                        ->selectablePlaceholder(false)
-                        ->native(false)
-                        ->searchable()
-                        ->live()
-                        ->afterStateUpdated(function (Set $set, Get $get): void {
-                            $this->resetDayIfInvalid($set, $get);
-                        })
-                        ->rules('required'),
-                ]),
+            Grid::make(2)->schema([
+                $this->makeYearSelect(),
+                $this->makeMonthSelect(),
+            ]),
             Grid::make(7)
                 ->columnSpanFull()
                 ->extraAttributes(['class' => 'fi-fo-jalali-calendar-weekdays'])
-                ->schema(
-                    collect($this->getWeekdayAbbreviations())
-                        ->map(
-                            fn (string $weekday): Text => Text::make($weekday)
-                                ->weight('medium')
-                                ->size('sm')
-                                ->extraAttributes(['class' => 'text-center']),
-                        )
-                        ->all(),
-                ),
-            JalaliCalendarDayToggleButtons::make('day')
-                ->hiddenLabel()
-                ->live()
-                ->options(fn (Get $get): array => $this->getCalendarDayOptions(
-                    (int) $get('year'),
-                    (int) $get('month'),
-                ))
-                ->todayDayUsing(fn (Get $get): ?int => $this->getTodayDayForViewingMonth(
-                    (int) $get('year'),
-                    (int) $get('month'),
-                ))
-                ->disableOptionWhen(function (string $value, Get $get): bool {
-                    if ($this->isPaddingDay($value)) {
-                        return true;
-                    }
-
-                    return $this->isDayDisabled(
-                        (int) $get('year'),
-                        (int) $get('month'),
-                        (int) $value,
-                    );
-                })
-                ->gridDirection(GridDirection::Row)
-                ->columns(7)
-                ->columnSpanFull()
-                ->extraAttributes([
-                    'class' => 'fi-fo-jalali-calendar-days',
-                ])
-                ->afterStateUpdated(function (?string $state, Get $get, Component $livewire) use ($picker): void {
-                    if (blank($state) || $picker->isPaddingDay($state)) {
-                        return;
-                    }
-
-                    if ($picker->isDayDisabled((int) $get('year'), (int) $get('month'), (int) $state)) {
-                        return;
-                    }
-
-                    $picker->state(
-                        Verta::createJalaliDate((int) $get('year'), (int) $get('month'), (int) $state)
-                            ->formatGregorian('Y-m-d'),
-                    );
-
-                    $livewire->unmountAction();
-                }),
+                ->schema($this->getWeekdayHeaderSchema()),
+            $this->makeDayToggleButtons(),
         ];
+    }
+
+    protected function makeYearSelect(): Select
+    {
+        return Select::make('year')
+            ->label('سال')
+            ->hiddenLabel()
+            ->options(fn (): array => $this->getYearOptions())
+            ->optionsLimit(fn (): int => count($this->getYearOptions()))
+            ->selectablePlaceholder(false)
+            ->native(false)
+            ->searchable()
+            ->searchValues()
+            ->live()
+            ->markAsRequired(false)
+            ->afterStateUpdated(fn (Set $set, Get $get) => $this->resetDayIfInvalid($set, $get))
+            ->rules('required');
+    }
+
+    protected function makeMonthSelect(): Select
+    {
+        return Select::make('month')
+            ->label('ماه')
+            ->hiddenLabel()
+            ->options($this->getMonthOptions())
+            ->selectablePlaceholder(false)
+            ->native(false)
+            ->searchable()
+            ->live()
+            ->markAsRequired(false)
+            ->afterStateUpdated(fn (Set $set, Get $get) => $this->resetDayIfInvalid($set, $get))
+            ->rules('required');
+    }
+
+    protected function makeDayToggleButtons(): JalaliCalendarDayToggleButtons
+    {
+        $picker = $this;
+
+        return JalaliCalendarDayToggleButtons::make('day')
+            ->hiddenLabel()
+            ->live()
+            ->options(fn (Get $get): array => $this->buildCalendarDayOptions(
+                (int) $get('year'),
+                (int) $get('month'),
+            ))
+            ->todayDayUsing(fn (Get $get): ?int => $this->getTodayDayForViewingMonth(
+                (int) $get('year'),
+                (int) $get('month'),
+            ))
+            ->disableOptionWhen(function (string $value, Get $get): bool {
+                if (! is_numeric($value)) {
+                    return true;
+                }
+
+                return $this->isDayDisabled(
+                    (int) $get('year'),
+                    (int) $get('month'),
+                    (int) $value,
+                );
+            })
+            ->gridDirection(GridDirection::Row)
+            ->columns(7)
+            ->columnSpanFull()
+            ->extraAttributes(['class' => 'fi-fo-jalali-calendar-days'])
+            ->afterStateUpdated(function (?string $state, Get $get, Component $livewire) use ($picker): void {
+                if (! is_numeric($state)) {
+                    return;
+                }
+
+                if ($picker->isDayDisabled((int) $get('year'), (int) $get('month'), (int) $state)) {
+                    return;
+                }
+
+                $picker->state(
+                    Verta::createJalaliDate((int) $get('year'), (int) $get('month'), (int) $state)
+                        ->formatGregorian('Y-m-d'),
+                );
+
+                $livewire->unmountAction();
+            });
     }
 
     protected function resetDayIfInvalid(Set $set, Get $get): void
     {
         $day = $get('day');
 
-        if (blank($day) || $this->isPaddingDay((string) $day)) {
+        if (! is_numeric($day)) {
             return;
         }
 
@@ -199,6 +209,44 @@ class JalaliDatePicker extends Field implements HasAffixesContract, HasEmbeddedV
         }
 
         return $today->day;
+    }
+
+    /**
+     * @return array<int, Text>
+     */
+    protected function getWeekdayHeaderSchema(): array
+    {
+        return collect($this->getWeekdayAbbreviations())
+            ->map(
+                fn (string $weekday): Text => Text::make($weekday)
+                    ->weight('medium')
+                    ->size('sm')
+                    ->extraAttributes(['class' => 'text-center']),
+            )
+            ->all();
+    }
+
+    /**
+     * @return array<int|string, string>
+     */
+    protected function buildCalendarDayOptions(int $year, int $month): array
+    {
+        if ($year <= 0 || $month <= 0) {
+            return [];
+        }
+
+        $firstDayOfMonth = Verta::createJalaliDate($year, $month, 1);
+        $options = [];
+
+        for ($index = 0; $index < $firstDayOfMonth->dayOfWeek; $index++) {
+            $options["p{$index}"] = self::CALENDAR_PADDING_LABEL;
+        }
+
+        for ($day = 1; $day <= $firstDayOfMonth->daysInMonth; $day++) {
+            $options[$day] = (string) $day;
+        }
+
+        return $options;
     }
 
     /**
@@ -272,24 +320,6 @@ class JalaliDatePicker extends Field implements HasAffixesContract, HasEmbeddedV
         return $this->evaluate($this->minDate);
     }
 
-    public function getMinJalaliYear(): ?int
-    {
-        if (blank($this->getMinDate())) {
-            return null;
-        }
-
-        return $this->toVerta($this->getMinDate())?->year;
-    }
-
-    public function getMaxJalaliYear(): ?int
-    {
-        if (blank($this->getMaxDate())) {
-            return null;
-        }
-
-        return $this->toVerta($this->getMaxDate())?->year;
-    }
-
     public function getDisplayState(): ?string
     {
         return $this->toVerta($this->getState())?->format($this->getDisplayFormat());
@@ -306,11 +336,9 @@ class JalaliDatePicker extends Field implements HasAffixesContract, HasEmbeddedV
         $isSuffixInline = $this->isSuffixInline();
         $prefixActions = $this->getPrefixActions();
         $prefixIcon = $this->getPrefixIcon();
-        $prefixIconColor = $this->getPrefixIconColor();
         $prefixLabel = $this->getPrefixLabel();
         $suffixActions = $this->getSuffixActions();
         $suffixIcon = $this->getSuffixIcon();
-        $suffixIconColor = $this->getSuffixIconColor();
         $suffixLabel = $this->getSuffixLabel();
         $statePath = $this->getStatePath();
         $placeholder = $this->getPlaceholder();
@@ -397,8 +425,8 @@ class JalaliDatePicker extends Field implements HasAffixesContract, HasEmbeddedV
     protected function getYearOptions(): array
     {
         $currentYear = Verta::now()->year;
-        $minYear = $this->getMinJalaliYear() ?? ($currentYear - 100);
-        $maxYear = $this->getMaxJalaliYear() ?? ($currentYear + 10);
+        $minYear = $this->getMinJalaliYear() ?? ($currentYear - self::YEAR_RANGE_BEFORE);
+        $maxYear = $this->getMaxJalaliYear() ?? ($currentYear + self::YEAR_RANGE_AFTER);
 
         $options = [];
 
@@ -407,6 +435,24 @@ class JalaliDatePicker extends Field implements HasAffixesContract, HasEmbeddedV
         }
 
         return $options;
+    }
+
+    protected function getMinJalaliYear(): ?int
+    {
+        if (blank($this->getMinDate())) {
+            return null;
+        }
+
+        return $this->toVerta($this->getMinDate())?->year;
+    }
+
+    protected function getMaxJalaliYear(): ?int
+    {
+        if (blank($this->getMaxDate())) {
+            return null;
+        }
+
+        return $this->toVerta($this->getMaxDate())?->year;
     }
 
     /**
@@ -418,30 +464,6 @@ class JalaliDatePicker extends Field implements HasAffixesContract, HasEmbeddedV
             ->map(fn (string $weekday): string => mb_substr($weekday, 0, 1, 'UTF-8'))
             ->values()
             ->all();
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    protected function getCalendarDayOptions(int $year, int $month): array
-    {
-        $firstDayOfMonth = Verta::createJalaliDate($year, $month, 1);
-        $options = [];
-
-        for ($index = 0; $index < $firstDayOfMonth->dayOfWeek; $index++) {
-            $options["pad_{$index}"] = ' ';
-        }
-
-        for ($day = 1; $day <= $firstDayOfMonth->daysInMonth; $day++) {
-            $options[(string) $day] = (string) $day;
-        }
-
-        return $options;
-    }
-
-    protected function isPaddingDay(string $value): bool
-    {
-        return str_starts_with($value, 'pad_');
     }
 
     protected function isDayDisabled(int $year, int $month, int $day): bool

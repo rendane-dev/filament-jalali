@@ -18,6 +18,8 @@
 .fi-fo-jalali-calendar-days .fi-disabled {
     visibility: hidden;
     pointer-events: none;
+    background-color: transparent;
+    box-shadow: none;
 }
 
 .fi-fo-jalali-calendar-days .fi-fo-jalali-today {

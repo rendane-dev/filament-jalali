@@ -34,7 +34,7 @@ class JalaliCalendarDayToggleButtons extends ToggleButtons
     {
         $todayDay = $this->getTodayDay();
 
-        if ($todayDay === null || str_starts_with((string) $value, 'pad_')) {
+        if ($todayDay === null || ! is_numeric($value)) {
             return false;
         }
 
