@@ -1,0 +1,38 @@
+.fi-fo-jalali-calendar-days.fi-fo-toggle-buttons {
+    width: 100%;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.fi-fo-jalali-calendar-days .fi-fo-toggle-buttons-btn-ctn {
+    width: 100%;
+    min-width: 0;
+}
+
+.fi-fo-jalali-calendar-days .fi-btn {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    justify-content: center;
+    padding-inline: 0;
+}
+
+.fi-fo-jalali-calendar-days .fi-disabled {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.fi-fo-jalali-calendar-days .fi-fo-jalali-today {
+    font-weight: 500;
+    color: var(--primary-600);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary-600) 18%, transparent);
+    background-color: color-mix(in oklab, var(--primary-600) 6%, transparent);
+}
+
+.dark .fi-fo-jalali-calendar-days .fi-fo-jalali-today {
+    color: var(--primary-400);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary-400) 22%, transparent);
+    background-color: color-mix(in oklab, var(--primary-400) 10%, transparent);
+}
+
+.fi-fo-jalali-calendar-weekdays {
+    width: 100%;
+}
